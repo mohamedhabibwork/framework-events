@@ -57,7 +57,9 @@ export class RealtimeHub {
     this.#sockets.delete(channel);
     const unsubscribe = this.#unsubscribe.get(channel);
     this.#unsubscribe.delete(channel);
-    await (await unsubscribe)?.();
+    await (
+      await unsubscribe
+    )?.();
   }
 
   listeners(channel: string): number {
