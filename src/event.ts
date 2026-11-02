@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Actor, ExecutionContext, JsonValue } from '@framework/core';
+import type { Actor, ExecutionContext, JsonValue, Register } from '@framework/core';
 import { z } from 'zod/v4';
 
 /** A fact that happened, published after the change is committed. */
@@ -14,6 +14,23 @@ export interface DomainEvent<TPayload extends JsonValue = JsonValue> {
   readonly actor: Actor;
   readonly occurredAt: string;
 }
+
+type RegisteredEvents = Register extends { readonly events: infer TEvents extends object } ? TEvents : object;
+type RegisteredEventType = keyof RegisteredEvents & string;
+
+/** The payload `Register.events` declares for `TType`; any JSON value for an event it doesn't list. */
+export type EventPayload<TType extends string> = TType extends RegisteredEventType
+  ? Extract<RegisteredEvents[TType], JsonValue>
+  : JsonValue;
+
+type EventTypeOn<TChannel extends string> = Extract<RegisteredEventType, `${TChannel}.${string}`>;
+
+/** What a handler on `TChannel` receives: the declared events, or any event when none are declared. */
+export type EventOn<TChannel extends string> = [EventTypeOn<TChannel>] extends [never]
+  ? DomainEvent
+  : {
+      [TType in EventTypeOn<TChannel>]: Omit<DomainEvent<EventPayload<TType>>, 'type'> & { readonly type: TType };
+    }[EventTypeOn<TChannel>];
 
 const CHANNEL = /^[a-z][a-z0-9_.:-]{0,127}$/;
 
@@ -41,12 +58,11 @@ export const domainEventSchema = z.object({
   occurredAt: z.iso.datetime(),
 });
 
-export function createDomainEvent<TPayload extends JsonValue>(
-  channel: string,
-  verb: string,
-  payload: TPayload,
-  context: ExecutionContext,
-): DomainEvent<TPayload> {
+export function createDomainEvent<
+  const TChannel extends string,
+  const TVerb extends string,
+  TPayload extends EventPayload<`${TChannel}.${TVerb}`>,
+>(channel: TChannel, verb: TVerb, payload: TPayload, context: ExecutionContext): DomainEvent<TPayload> {
   channelSchema.parse(channel);
   return {
     id: randomUUID(),

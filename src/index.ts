@@ -8,6 +8,8 @@ export { RedisEventBus } from './redis-bus';
 // Grouped conventions: every type in ./types, every constant in ./constants.
 export type {
   DomainEvent,
+  EventOn,
+  EventPayload,
   EventBus,
   EventHandler,
   HandlerErrorReporter,

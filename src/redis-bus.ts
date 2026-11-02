@@ -1,6 +1,6 @@
 import { RedisClient } from 'bun';
 import { dispatch, type EventBus, type EventHandler, type HandlerErrorReporter, type Unsubscribe } from './bus';
-import { type DomainEvent, domainEventSchema } from './event';
+import { type DomainEvent, domainEventSchema, type EventOn } from './event';
 
 export interface RedisEventBusOptions {
   readonly url: string;
@@ -34,7 +34,11 @@ export class RedisEventBus implements EventBus {
     await this.#publisher.publish(this.#key(event.channel), JSON.stringify(event));
   }
 
-  async subscribe(channel: string, handler: EventHandler): Promise<Unsubscribe> {
+  async subscribe<TChannel extends string>(
+    channel: TChannel,
+    typedHandler: (event: EventOn<TChannel>) => void | Promise<void>,
+  ): Promise<Unsubscribe> {
+    const handler = typedHandler as unknown as EventHandler;
     let set = this.#handlers.get(channel);
     if (!set) {
       set = new Set<EventHandler>();

@@ -1,5 +1,5 @@
 import { token } from '@framework/core';
-import type { DomainEvent } from './event';
+import type { DomainEvent, EventOn } from './event';
 
 export type EventHandler = (event: DomainEvent) => void | Promise<void>;
 export type Unsubscribe = () => Promise<void>;
@@ -7,7 +7,11 @@ export type Unsubscribe = () => Promise<void>;
 /** Publish/subscribe contract shared by the in-memory and Redis adapters. */
 export interface EventBus {
   publish(event: DomainEvent): Promise<void>;
-  subscribe(channel: string, handler: EventHandler): Promise<Unsubscribe>;
+  /** On a channel `Register.events` declares, the handler sees those events' payloads. */
+  subscribe<TChannel extends string>(
+    channel: TChannel,
+    handler: (event: EventOn<TChannel>) => void | Promise<void>,
+  ): Promise<Unsubscribe>;
   close(): Promise<void>;
 }
 
@@ -45,7 +49,11 @@ export class MemoryEventBus implements EventBus {
     await dispatch(this.#handlers.get(event.channel) ?? [], event, this.report);
   }
 
-  async subscribe(channel: string, handler: EventHandler): Promise<Unsubscribe> {
+  async subscribe<TChannel extends string>(
+    channel: TChannel,
+    typedHandler: (event: EventOn<TChannel>) => void | Promise<void>,
+  ): Promise<Unsubscribe> {
+    const handler = typedHandler as unknown as EventHandler;
     const set = this.#handlers.get(channel) ?? new Set<EventHandler>();
     set.add(handler);
     this.#handlers.set(channel, set);
